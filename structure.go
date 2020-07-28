@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
+	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"io"
 	"os"
 )
@@ -60,6 +61,33 @@ func WriteFile(file string, s Structure) error {
 		return fmt.Errorf("open file: %w", err)
 	}
 	return Write(bufio.NewWriter(f), s)
+}
+
+// New creates a new Structure and initialises it with air blocks. The Structure returned may be written to
+// using Structure.Set and Structure.SetAdditionalLiquid and the palette may be changed by using UsePalette.
+func New(dimensions [3]int) Structure {
+	front := make([]int32, dimensions[0]*dimensions[1]*dimensions[2])
+	liquids := make([]int32, dimensions[0]*dimensions[1]*dimensions[2])
+	for i := range liquids {
+		liquids[i] = -1
+	}
+
+	s := Structure{structure: &structure{
+		FormatVersion: version,
+		Size:          []int32{int32(dimensions[0]), int32(dimensions[1]), int32(dimensions[2])},
+		Origin:        []int32{0, 0, 0},
+		Structure: structureData{
+			BlockIndices: [][]int32{front, liquids},
+			Palettes:     map[string]palette{},
+		},
+	}}
+	s.UsePalette("default")
+	s.palette.BlockPalette = append(s.palette.BlockPalette, block{
+		Name:    "minecraft:air",
+		States:  map[string]interface{}{},
+		Version: protocol.CurrentBlockVersion,
+	})
+	return s
 }
 
 // UsePalette changes the palette name to use for the Structure. When reading a Structure, this will change

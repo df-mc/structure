@@ -3,6 +3,7 @@ package structure
 import (
 	"fmt"
 	"github.com/df-mc/dragonfly/dragonfly/world"
+	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"strconv"
 )
 
@@ -21,10 +22,11 @@ type structure struct {
 // Check to ensure that *structure implements the world.Structure interface.
 var _ world.Structure = (*structure)(nil)
 
+const version = 1
+
 // check checks if the structure is valid. It returns an error if anything in the structure was found to be
 // incorrect.
 func (s *structure) check() error {
-	const version = 1
 	if s.FormatVersion != version {
 		return fmt.Errorf("unsupported format version %v: expected version %v", s.FormatVersion, version)
 	}
@@ -69,6 +71,64 @@ func (s *structure) Dimensions() [3]int {
 		int(s.Size[1]),
 		int(s.Size[2]),
 	}
+}
+
+// Set sets the block at a specific position within the structure to the world.Block passed. Set will panic
+// if the x, y or z exceed the bounds of the structure.
+func (s *structure) Set(x, y, z int, b world.Block) {
+	name, properties := b.EncodeBlock()
+	ptr := s.lookup(name, properties)
+	if ptr == -1 {
+		s.palette.BlockPalette = append(s.palette.BlockPalette, block{
+			Name:    name,
+			States:  properties,
+			Version: protocol.CurrentBlockVersion,
+		})
+		ptr = int32(len(s.palette.BlockPalette))
+	}
+	l, h := int(s.Size[2]), int(s.Size[1])
+	offset := (x * l * h) + (y * l) + z
+
+	s.Structure.BlockIndices[0][offset] = ptr
+}
+
+// SetAdditionalLiquid sets an additional liquid block at the position passed, so that the block on the main
+// layer of the world will be waterlogged.
+func (s *structure) SetAdditionalLiquid(x, y, z int, b world.Liquid) {
+	name, properties := b.EncodeBlock()
+	ptr := s.lookup(name, properties)
+	if ptr == -1 {
+		s.palette.BlockPalette = append(s.palette.BlockPalette, block{
+			Name:    name,
+			States:  properties,
+			Version: protocol.CurrentBlockVersion,
+		})
+		ptr = int32(len(s.palette.BlockPalette))
+	}
+	l, h := int(s.Size[2]), int(s.Size[1])
+	offset := (x * l * h) + (y * l) + z
+
+	s.Structure.BlockIndices[1][offset] = ptr
+}
+
+// lookup looks up the world.Block passed in the palette of the structure. If not found, the value returned is
+// -1.
+func (s *structure) lookup(name string, properties map[string]interface{}) int32 {
+	for index, block := range s.palette.BlockPalette {
+		if block.Name == name {
+			allEqual := true
+			for k, v := range block.States {
+				if bVal, _ := properties[k]; bVal != v {
+					allEqual = false
+					break
+				}
+			}
+			if allEqual {
+				return int32(index)
+			}
+		}
+	}
+	return -1
 }
 
 // At returns the block at the x, y and z passed in the structure.
