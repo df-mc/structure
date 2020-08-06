@@ -1,7 +1,6 @@
 package structure
 
 import (
-	"bufio"
 	"fmt"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -33,7 +32,7 @@ func Read(r io.Reader) (Structure, error) {
 }
 
 // ReadFile attempts to read a Structure from a file at the path passed. If successful, the error returned is
-// nil. ReadFile wraps the file in a bufio.Reader and feeds it into the Read function.
+// nil.
 // ReadFile, like Read, uses a palette name of 'default' by default. UsePalette may be used to change
 // the name of the palette to use.
 func ReadFile(file string) (Structure, error) {
@@ -41,7 +40,7 @@ func ReadFile(file string) (Structure, error) {
 	if err != nil {
 		return Structure{}, fmt.Errorf("open file: %w", err)
 	}
-	return Read(bufio.NewReader(f))
+	return Read(f)
 }
 
 // Write writes a Structure to the io.Writer passed. If successful, the error returned is nil.
@@ -54,13 +53,12 @@ func Write(w io.Writer, s Structure) error {
 
 // WriteFile writes a Structure to the file passed. If successful, the error returned is nil. WriteFile
 // creates a file if it doesn't yet exist and truncates it if one does exist.
-// The os.File, when opened, is wrapped in a bufio.Writer.
 func WriteFile(file string, s Structure) error {
 	f, err := os.OpenFile(file, os.O_TRUNC|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
-	return Write(bufio.NewWriter(f), s)
+	return Write(f, s)
 }
 
 // New creates a new Structure and initialises it with air blocks. The Structure returned may be written to
