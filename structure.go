@@ -45,6 +45,8 @@ func ReadFile(file string) (Structure, error) {
 
 // Write writes a Structure to the io.Writer passed. If successful, the error returned is nil.
 func Write(w io.Writer, s Structure) error {
+	s.Structure.Palettes[s.paletteName] = *s.palette
+
 	if err := nbt.NewEncoderWithEncoding(w, nbt.LittleEndian).Encode(s.structure); err != nil {
 		return fmt.Errorf("encode structure: %w", err)
 	}
