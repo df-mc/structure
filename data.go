@@ -79,12 +79,12 @@ func (s *structure) Set(x, y, z int, b world.Block) {
 	name, properties := b.EncodeBlock()
 	ptr := s.lookup(name, properties)
 	if ptr == -1 {
+		ptr = int32(len(s.palette.BlockPalette))
 		s.palette.BlockPalette = append(s.palette.BlockPalette, block{
 			Name:    name,
 			States:  properties,
 			Version: protocol.CurrentBlockVersion,
 		})
-		ptr = int32(len(s.palette.BlockPalette))
 	}
 	l, h := int(s.Size[2]), int(s.Size[1])
 	offset := (x * l * h) + (y * l) + z
