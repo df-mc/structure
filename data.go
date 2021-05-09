@@ -2,7 +2,7 @@ package structure
 
 import (
 	"fmt"
-	"github.com/df-mc/dragonfly/dragonfly/world"
+	"github.com/df-mc/dragonfly/server/world"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"strconv"
 )
@@ -52,13 +52,13 @@ func (s *structure) check() error {
 		}
 	}
 	paletteLen := -1
-	for _, palette := range s.Structure.Palettes {
+	for _, p := range s.Structure.Palettes {
 		if paletteLen == -1 {
-			paletteLen = len(palette.BlockPalette)
+			paletteLen = len(p.BlockPalette)
 			continue
 		}
-		if len(palette.BlockPalette) != paletteLen {
-			return fmt.Errorf("all palettes must have the same length, but got one with length %v and one with length %v", paletteLen, len(palette.BlockPalette))
+		if len(p.BlockPalette) != paletteLen {
+			return fmt.Errorf("all palettes must have the same length, but got one with length %v and one with length %v", paletteLen, len(p.BlockPalette))
 		}
 	}
 	return nil
@@ -66,16 +66,16 @@ func (s *structure) check() error {
 
 // Dimensions returns the dimensions of the structure as set in the Origin field.
 func (s *structure) Dimensions() [3]int {
-	return [3]int{
-		int(s.Size[0]),
-		int(s.Size[1]),
-		int(s.Size[2]),
-	}
+	return [3]int{int(s.Size[0]), int(s.Size[1]), int(s.Size[2])}
 }
 
 // Set sets the block at a specific position within the structure to the world.Block passed. Set will panic
-// if the x, y or z exceed the bounds of the structure.
-func (s *structure) Set(x, y, z int, b world.Block) {
+// if the x, y or z exceed the bounds of the structure. The world.Liquid passed may be nil to avoid waterlogging the
+// block.
+func (s *structure) Set(x, y, z int, b world.Block, liq world.Liquid) {
+	l, h := int(s.Size[2]), int(s.Size[1])
+	offset := (x * l * h) + (y * l) + z
+
 	name, properties := b.EncodeBlock()
 	ptr := s.lookup(name, properties)
 	if ptr == -1 {
@@ -86,18 +86,15 @@ func (s *structure) Set(x, y, z int, b world.Block) {
 			Version: protocol.CurrentBlockVersion,
 		})
 	}
-	l, h := int(s.Size[2]), int(s.Size[1])
-	offset := (x * l * h) + (y * l) + z
-
 	s.Structure.BlockIndices[0][offset] = ptr
-}
+	if liq == nil {
+		// No liquid passed to be placed in the background.
+		s.Structure.BlockIndices[1][offset] = -1
+		return
+	}
 
-// SetAdditionalLiquid sets an additional liquid block at the position passed, so that the block on the main
-// layer of the world will be waterlogged.
-func (s *structure) SetAdditionalLiquid(x, y, z int, b world.Liquid) {
-	name, properties := b.EncodeBlock()
-	ptr := s.lookup(name, properties)
-	if ptr == -1 {
+	name, properties = liq.EncodeBlock()
+	if ptr = s.lookup(name, properties); ptr == -1 {
 		s.palette.BlockPalette = append(s.palette.BlockPalette, block{
 			Name:    name,
 			States:  properties,
@@ -105,9 +102,6 @@ func (s *structure) SetAdditionalLiquid(x, y, z int, b world.Liquid) {
 		})
 		ptr = int32(len(s.palette.BlockPalette))
 	}
-	l, h := int(s.Size[2]), int(s.Size[1])
-	offset := (x * l * h) + (y * l) + z
-
 	s.Structure.BlockIndices[1][offset] = ptr
 }
 
@@ -132,52 +126,41 @@ func (s *structure) lookup(name string, properties map[string]interface{}) int32
 }
 
 // At returns the block at the x, y and z passed in the structure.
-func (s *structure) At(x, y, z int, _ func(x int, y int, z int) world.Block) world.Block {
+func (s *structure) At(x, y, z int, _ func(x int, y int, z int) world.Block) (world.Block, world.Liquid) {
 	l, h := int(s.Size[2]), int(s.Size[1])
 	offset := (x * l * h) + (y * l) + z
 	index := s.Structure.BlockIndices[0][offset]
 	if index == -1 {
 		// Minecraft structures use -1 to indicate that there is no block at a position.
-		return nil
+		return nil, nil
 	}
 	state := s.palette.BlockPalette[index]
-	b, ok := world_blockByNameAndProperties(state.Name, state.States)
+	b, ok := world.BlockByName(state.Name, state.States)
 	if !ok {
-		return nil
+		return nil, nil
 	}
-	if b.HasNBT() {
-		if nbtBlock, ok := b.(world.NBTer); ok {
-			key := strconv.Itoa(offset)
-			nbtData, ok := s.palette.BlockPositionData[key]
-			if ok {
-				b = nbtBlock.DecodeNBT(nbtData.BlockEntityData).(world.Block)
-			}
+	if nbtBlock, ok := b.(world.NBTer); ok {
+		key := strconv.Itoa(offset)
+		nbtData, ok := s.palette.BlockPositionData[key]
+		if ok {
+			b = nbtBlock.DecodeNBT(nbtData.BlockEntityData).(world.Block)
 		}
 	}
-	return b
-}
-
-// AdditionalLiquidAt returns a liquid at the position passed if one is present in the structure block.
-func (s *structure) AdditionalLiquidAt(x, y, z int) world.Liquid {
 	if len(s.Structure.BlockIndices) > 1 {
-		l, h := int(s.Size[2]), int(s.Size[1])
-		offset := (x * l * h) + (y * l) + z
-
-		index := s.Structure.BlockIndices[1][offset]
-		if index == -1 {
+		if index = s.Structure.BlockIndices[1][offset]; index == -1 {
 			// Minecraft structures use -1 to indicate that there is no block at a position.
-			return nil
+			return b, nil
 		}
-		state := s.palette.BlockPalette[index]
-		b, ok := world_blockByNameAndProperties(state.Name, state.States)
+		state = s.palette.BlockPalette[index]
+		bLiq, ok := world.BlockByName(state.Name, state.States)
 		if !ok {
-			return nil
+			return b, nil
 		}
-		if liq, ok := b.(world.Liquid); ok {
-			return liq
+		if liq, ok := bLiq.(world.Liquid); ok {
+			return b, liq
 		}
 	}
-	return nil
+	return b, nil
 }
 
 // structureData holds the actual data of the structure. This includes both blocks and entities.

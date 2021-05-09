@@ -26,9 +26,9 @@ func Read(r io.Reader) (Structure, error) {
 	if err := s.check(); err != nil {
 		return Structure{}, fmt.Errorf("verify structure: %w", err)
 	}
-	structure := Structure{structure: s}
-	structure.UsePalette("default")
-	return structure, nil
+	str := Structure{structure: s}
+	str.UsePalette("default")
+	return str, nil
 }
 
 // ReadFile attempts to read a Structure from a file at the path passed. If successful, the error returned is
