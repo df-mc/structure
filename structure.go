@@ -115,10 +115,12 @@ func (s Structure) WithRotation(iterations int) Structure {
 
 	var newStructure Structure
 	switch iterations {
-	case 0, 2:
+	case 2:
 		newStructure = New([3]int{sizeX, sizeY, sizeZ})
 	case 1, 3:
 		newStructure = New([3]int{sizeZ, sizeY, sizeX})
+	default:
+		return s
 	}
 
 	maxX, maxZ := sizeX-1, sizeZ-1
