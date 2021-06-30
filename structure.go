@@ -106,3 +106,42 @@ func (s Structure) UsePalette(name string) {
 	s.palette = &p
 	s.paletteName = name
 }
+
+// WithRotation returns a new structure with the same contents but rotated 90 degrees clockwise the specified
+// amount of times.
+func (s Structure) WithRotation(iterations int) Structure {
+	iterations = iterations % 4 // Make sure iterations is between 0 and 3.
+	sizeX, sizeY, sizeZ := int(s.Size[0]), int(s.Size[1]), int(s.Size[2])
+
+	var newStructure Structure
+	switch iterations {
+	case 0, 2:
+		newStructure = New([3]int{sizeX, sizeY, sizeZ})
+	case 1, 3:
+		newStructure = New([3]int{sizeZ, sizeY, sizeX})
+	}
+
+	maxX, maxZ := sizeX-1, sizeZ-1
+	for x := 0; x < sizeX; x++ {
+		for y := 0; y < sizeY; y++ {
+			for z := 0; z < sizeZ; z++ {
+				newX, newZ := x, z
+				switch iterations {
+				case 1:
+					newX = -z + maxZ
+					newZ = x
+				case 2:
+					newX = -x + maxX
+					newZ = -z + maxZ
+				case 3:
+					newX = z
+					newZ = -x + maxX
+				}
+
+				b, l := s.At(x, y, z, nil)
+				newStructure.Set(newX, y, newZ, b, l)
+			}
+		}
+	}
+	return newStructure
+}
