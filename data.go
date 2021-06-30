@@ -3,7 +3,7 @@ package structure
 import (
 	"fmt"
 	"github.com/df-mc/dragonfly/server/world"
-	"github.com/sandertv/gophertunnel/minecraft/protocol"
+	"github.com/df-mc/dragonfly/server/world/chunk"
 	"strconv"
 )
 
@@ -83,7 +83,7 @@ func (s *structure) Set(x, y, z int, b world.Block, liq world.Liquid) {
 		s.palette.BlockPalette = append(s.palette.BlockPalette, block{
 			Name:    name,
 			States:  properties,
-			Version: protocol.CurrentBlockVersion,
+			Version: chunk.CurrentBlockVersion,
 		})
 	}
 	s.Structure.BlockIndices[0][offset] = ptr
@@ -98,7 +98,7 @@ func (s *structure) Set(x, y, z int, b world.Block, liq world.Liquid) {
 		s.palette.BlockPalette = append(s.palette.BlockPalette, block{
 			Name:    name,
 			States:  properties,
-			Version: protocol.CurrentBlockVersion,
+			Version: chunk.CurrentBlockVersion,
 		})
 		ptr = int32(len(s.palette.BlockPalette))
 	}

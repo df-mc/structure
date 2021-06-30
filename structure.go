@@ -2,8 +2,8 @@ package structure
 
 import (
 	"fmt"
+	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
-	"github.com/sandertv/gophertunnel/minecraft/protocol"
 	"io"
 	"os"
 )
@@ -85,7 +85,7 @@ func New(dimensions [3]int) Structure {
 	s.palette.BlockPalette = append(s.palette.BlockPalette, block{
 		Name:    "minecraft:air",
 		States:  map[string]interface{}{},
-		Version: protocol.CurrentBlockVersion,
+		Version: chunk.CurrentBlockVersion,
 	})
 	return s
 }
