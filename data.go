@@ -87,6 +87,10 @@ func (s *structure) Set(x, y, z int, b world.Block, liq world.Liquid) {
 		})
 	}
 	s.Structure.BlockIndices[0][offset] = ptr
+	if nbtBlock, ok := b.(world.NBTer); ok {
+		s.palette.BlockPositionData[strconv.Itoa(offset)] = blockPositionData{BlockEntityData: nbtBlock.EncodeNBT()}
+	}
+
 	if liq == nil {
 		// No liquid passed to be placed in the background.
 		s.Structure.BlockIndices[1][offset] = -1
