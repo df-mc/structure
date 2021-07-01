@@ -107,10 +107,23 @@ func (s Structure) UsePalette(name string) {
 	s.paletteName = name
 }
 
-// WithRotation returns a new structure with the same contents but rotated 90 degrees clockwise the specified
+// RotateLeft returns a new structure with the same contents but rotated 90 degrees anti-clockwise.
+func (s Structure) RotateLeft() Structure {
+	return rotate(-1)
+}
+
+// RotateRight returns a new structure with the same contents but rotated 90 degrees clockwise.
+func (s Structure) RotateRight() Structure {
+	return rotate(1)
+}
+
+// rotate returns a new structure with the same contents but rotated 90 degrees clockwise the specified
 // amount of times.
-func (s Structure) WithRotation(iterations int) Structure {
-	iterations = iterations % 4 // Make sure iterations is between 0 and 3.
+func (s Structure) rotate(iterations int) Structure {
+	iterations %= 4
+	if iterations < 0 {
+		iterations += 4
+	}
 	sizeX, sizeY, sizeZ := int(s.Size[0]), int(s.Size[1]), int(s.Size[2])
 
 	var newStructure Structure
