@@ -117,42 +117,23 @@ func (s Structure) RotateRight() Structure {
 	return rotate(1)
 }
 
-// rotate returns a new structure with the same contents but rotated 90 degrees clockwise the specified
-// amount of times.
-func (s Structure) rotate(iterations int) Structure {
-	iterations %= 4
-	if iterations < 0 {
-		iterations += 4
-	}
+// rotate returns a new structure with the same contents but rotated 90 degrees in the specificed direction.
+func (s Structure) rotate(direction int) Structure {
 	sizeX, sizeY, sizeZ := int(s.Size[0]), int(s.Size[1]), int(s.Size[2])
-
-	var newStructure Structure
-	switch iterations {
-	case 2:
-		newStructure = New([3]int{sizeX, sizeY, sizeZ})
-	case 1, 3:
-		newStructure = New([3]int{sizeZ, sizeY, sizeX})
-	default:
-		return s
-	}
+	newStructure := New([3]int{sizeZ, sizeY, sizeX})
 
 	maxX, maxZ := sizeX-1, sizeZ-1
 	for x := 0; x < sizeX; x++ {
 		for y := 0; y < sizeY; y++ {
 			for z := 0; z < sizeZ; z++ {
 				newX, newZ := x, z
-				switch iterations {
-				case 1:
+				if direction == 1 {
 					newX = -z + maxZ
 					newZ = x
-				case 2:
-					newX = -x + maxX
-					newZ = -z + maxZ
-				case 3:
+				} else {
 					newX = z
 					newZ = -x + maxX
 				}
-
 				b, l := s.At(x, y, z, nil)
 				newStructure.Set(newX, y, newZ, b, l)
 			}
