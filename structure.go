@@ -109,12 +109,12 @@ func (s Structure) UsePalette(name string) {
 
 // RotateLeft returns a new structure with the same contents but rotated 90 degrees anti-clockwise.
 func (s Structure) RotateLeft() Structure {
-	return rotate(-1)
+	return s.rotate(-1)
 }
 
 // RotateRight returns a new structure with the same contents but rotated 90 degrees clockwise.
 func (s Structure) RotateRight() Structure {
-	return rotate(1)
+	return s.rotate(1)
 }
 
 // rotate returns a new structure with the same contents but rotated 90 degrees in the specificed direction.
