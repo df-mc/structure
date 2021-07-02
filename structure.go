@@ -2,10 +2,14 @@ package structure
 
 import (
 	"fmt"
+	"github.com/df-mc/dragonfly/server/block/cube"
+	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
+	"go/ast"
 	"io"
 	"os"
+	"reflect"
 )
 
 // Structure holds the data of an .mcstructure file. Structure implements the world.Structure interface. It
@@ -137,6 +141,49 @@ func (s Structure) rotate(direction int) Structure {
 				b, l := s.At(x, y, z, nil)
 				newStructure.Set(newX, y, newZ, b, l)
 			}
+		}
+	}
+	for i, state := range s.palette.BlockPalette {
+		b, ok := world.BlockByName(state.Name, state.States)
+		if !ok {
+			continue
+		}
+
+		origin := reflect.ValueOf(b)
+		t := reflect.TypeOf(b)
+		v := reflect.New(t).Elem()
+
+		for i := 0; i < v.NumField(); i++ {
+			fieldV := v.Field(i)
+			if !ast.IsExported(t.Field(i).Name) {
+				continue
+			}
+
+			// We set the field of the original to the new one to make sure that the existing values are placed
+			// back in the form element. Not doing so would result in unexpected behaviour.
+			fieldV.Set(origin.Field(i))
+
+			switch t := fieldV.Interface().(type) {
+			case cube.Direction:
+				if direction == 1 {
+					fieldV.SetInt(int64(t.RotateRight90()))
+				} else {
+					fieldV.SetInt(int64(t.RotateLeft90()))
+				}
+			case cube.Axis:
+				if t == cube.X {
+					fieldV.SetInt(int64(cube.Z))
+				} else {
+					fieldV.SetInt(int64(cube.X))
+				}
+			}
+		}
+
+		name, states := v.Interface().(world.Block).EncodeBlock()
+		s.palette.BlockPalette[i] = block{
+			Name:    name,
+			States:  states,
+			Version: state.Version,
 		}
 	}
 	return newStructure
