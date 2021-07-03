@@ -173,7 +173,7 @@ func (s Structure) rotate(direction int) Structure {
 			case cube.Axis:
 				if t == cube.X {
 					fieldV.SetInt(int64(cube.Z))
-				} else {
+				} else if t == cube.Z {
 					fieldV.SetInt(int64(cube.X))
 				}
 			}
