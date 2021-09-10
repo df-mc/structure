@@ -1,6 +1,7 @@
 package structure
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
@@ -21,7 +22,7 @@ type Structure struct {
 func Read(r io.Reader) (Structure, error) {
 	s := &structure{}
 	if err := nbt.NewDecoderWithEncoding(r, nbt.LittleEndian).Decode(s); err != nil {
-		return Structure{}, fmt.Errorf("decode structure: %w", err)
+		return Structure{}, fmt.Errorf("decode structure: %v", err.Error())
 	}
 	if err := s.check(); err != nil {
 		return Structure{}, fmt.Errorf("verify structure: %w", err)
@@ -40,7 +41,8 @@ func ReadFile(file string) (Structure, error) {
 	if err != nil {
 		return Structure{}, fmt.Errorf("open file: %w", err)
 	}
-	return Read(f)
+	defer f.Close()
+	return Read(bufio.NewReader(f))
 }
 
 // Write writes a Structure to the io.Writer passed. If successful, the error returned is nil.
@@ -60,7 +62,12 @@ func WriteFile(file string, s Structure) error {
 	if err != nil {
 		return fmt.Errorf("open file: %w", err)
 	}
-	return Write(f, s)
+	w := bufio.NewWriter(f)
+	defer func() {
+		_ = w.Flush()
+		_ = f.Close()
+	}()
+	return Write(w, s)
 }
 
 // New creates a new Structure and initialises it with air blocks. The Structure returned may be written to
