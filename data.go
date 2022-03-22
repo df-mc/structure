@@ -15,8 +15,9 @@ type structure struct {
 	Origin        []int32       `nbt:"structure_world_origin"`
 	Structure     structureData `nbt:"structure"`
 
-	palette     *palette
-	paletteName string
+	palette       *palette
+	paletteName   string
+	parsedPalette []world.Block
 }
 
 // Check to ensure that *structure implements the world.Structure interface.
@@ -24,7 +25,106 @@ var _ world.Structure = (*structure)(nil)
 
 const version = 1
 
-// check checks if the structure is valid. It returns an error if anything in the structure was found to be
+// Dimensions returns the dimensions of the structure as set in the Origin field.
+func (s *structure) Dimensions() [3]int {
+	return [3]int{int(s.Size[0]), int(s.Size[1]), int(s.Size[2])}
+}
+
+// Set sets the block at a specific position within the structure to the world.Block passed. Set will panic
+// if the x, y or z exceed the bounds of the structure. The world.Liquid passed may be nil to avoid waterlogging the
+// block.
+func (s *structure) Set(x, y, z int, b world.Block, liq world.Liquid) {
+	l, h := int(s.Size[2]), int(s.Size[1])
+	offset := (x * l * h) + (y * l) + z
+
+	s.Structure.BlockIndices[0][offset] = s.ptrFor(b)
+	if nbtBlock, ok := b.(world.NBTer); ok {
+		s.palette.BlockPositionData[strconv.Itoa(offset)] = blockPositionData{BlockEntityData: nbtBlock.EncodeNBT()}
+	}
+
+	if liq == nil {
+		// No liquid passed to be placed in the background.
+		s.Structure.BlockIndices[1][offset] = -1
+		return
+	}
+	s.Structure.BlockIndices[1][offset] = s.ptrFor(liq)
+}
+
+// ptrFor looks up a palette pointer for the world.Block passed. If not found, it adds the block to the palette of the
+// structure and returns a pointer to the new value in the palette.
+func (s *structure) ptrFor(b world.Block) int32 {
+	name, properties := b.EncodeBlock()
+	ptr := s.lookup(name, properties)
+
+	if ptr == -1 {
+		// No pointer found, add a new block to the palette.
+		ptr = int32(len(s.palette.BlockPalette))
+		s.palette.BlockPalette = append(s.palette.BlockPalette, block{
+			Name:    name,
+			States:  properties,
+			Version: chunk.CurrentBlockVersion,
+		})
+		s.parsePalette()
+	}
+	return ptr
+}
+
+// At returns the block at the x, y and z passed in the structure.
+func (s *structure) At(x, y, z int, _ func(x int, y int, z int) world.Block) (world.Block, world.Liquid) {
+	l, h := int(s.Size[2]), int(s.Size[1])
+	offset := (x * l * h) + (y * l) + z
+	index := s.Structure.BlockIndices[0][offset]
+	if index == -1 {
+		// Minecraft structures use -1 to indicate that there is no block at a position.
+		return nil, nil
+	}
+	b := s.parsedPalette[index]
+	if nbtBlock, ok := b.(world.NBTer); ok {
+		if nbtData, ok := s.palette.BlockPositionData[strconv.Itoa(offset)]; ok {
+			b = nbtBlock.DecodeNBT(nbtData.BlockEntityData).(world.Block)
+		}
+	}
+	if len(s.Structure.BlockIndices) > 1 {
+		if index = s.Structure.BlockIndices[1][offset]; index == -1 {
+			// Minecraft structures use -1 to indicate that there is no block at a position.
+			return b, nil
+		}
+		if liq, ok := s.parsedPalette[index].(world.Liquid); ok {
+			return b, liq
+		}
+	}
+	return b, nil
+}
+
+// parsePalette parses the palette of the structure so that blocks can be looked up more quickly using At.
+func (s *structure) parsePalette() {
+	s.parsedPalette = make([]world.Block, len(s.palette.BlockPalette))
+	for i, b := range s.palette.BlockPalette {
+		s.parsedPalette[i], _ = world.BlockByName(b.Name, b.States)
+	}
+}
+
+// lookup looks up the world.Block passed in the palette of the structure. If not found, the value returned is
+// -1.
+func (s *structure) lookup(name string, properties map[string]interface{}) int32 {
+	for index, block := range s.palette.BlockPalette {
+		if block.Name == name {
+			allEqual := true
+			for k, v := range block.States {
+				if bVal, _ := properties[k]; bVal != v {
+					allEqual = false
+					break
+				}
+			}
+			if allEqual {
+				return int32(index)
+			}
+		}
+	}
+	return -1
+}
+
+// check verifies if the structure is valid. It returns an error if anything in the structure was found to be
 // incorrect.
 func (s *structure) check() error {
 	if s.FormatVersion != version {
@@ -62,109 +162,6 @@ func (s *structure) check() error {
 		}
 	}
 	return nil
-}
-
-// Dimensions returns the dimensions of the structure as set in the Origin field.
-func (s *structure) Dimensions() [3]int {
-	return [3]int{int(s.Size[0]), int(s.Size[1]), int(s.Size[2])}
-}
-
-// Set sets the block at a specific position within the structure to the world.Block passed. Set will panic
-// if the x, y or z exceed the bounds of the structure. The world.Liquid passed may be nil to avoid waterlogging the
-// block.
-func (s *structure) Set(x, y, z int, b world.Block, liq world.Liquid) {
-	l, h := int(s.Size[2]), int(s.Size[1])
-	offset := (x * l * h) + (y * l) + z
-
-	name, properties := b.EncodeBlock()
-	ptr := s.lookup(name, properties)
-	if ptr == -1 {
-		ptr = int32(len(s.palette.BlockPalette))
-		s.palette.BlockPalette = append(s.palette.BlockPalette, block{
-			Name:    name,
-			States:  properties,
-			Version: chunk.CurrentBlockVersion,
-		})
-	}
-	s.Structure.BlockIndices[0][offset] = ptr
-	if nbtBlock, ok := b.(world.NBTer); ok {
-		s.palette.BlockPositionData[strconv.Itoa(offset)] = blockPositionData{BlockEntityData: nbtBlock.EncodeNBT()}
-	}
-
-	if liq == nil {
-		// No liquid passed to be placed in the background.
-		s.Structure.BlockIndices[1][offset] = -1
-		return
-	}
-
-	name, properties = liq.EncodeBlock()
-	if ptr = s.lookup(name, properties); ptr == -1 {
-		s.palette.BlockPalette = append(s.palette.BlockPalette, block{
-			Name:    name,
-			States:  properties,
-			Version: chunk.CurrentBlockVersion,
-		})
-		ptr = int32(len(s.palette.BlockPalette))
-	}
-	s.Structure.BlockIndices[1][offset] = ptr
-}
-
-// lookup looks up the world.Block passed in the palette of the structure. If not found, the value returned is
-// -1.
-func (s *structure) lookup(name string, properties map[string]interface{}) int32 {
-	for index, block := range s.palette.BlockPalette {
-		if block.Name == name {
-			allEqual := true
-			for k, v := range block.States {
-				if bVal, _ := properties[k]; bVal != v {
-					allEqual = false
-					break
-				}
-			}
-			if allEqual {
-				return int32(index)
-			}
-		}
-	}
-	return -1
-}
-
-// At returns the block at the x, y and z passed in the structure.
-func (s *structure) At(x, y, z int, _ func(x int, y int, z int) world.Block) (world.Block, world.Liquid) {
-	l, h := int(s.Size[2]), int(s.Size[1])
-	offset := (x * l * h) + (y * l) + z
-	index := s.Structure.BlockIndices[0][offset]
-	if index == -1 {
-		// Minecraft structures use -1 to indicate that there is no block at a position.
-		return nil, nil
-	}
-	state := s.palette.BlockPalette[index]
-	b, ok := world.BlockByName(state.Name, state.States)
-	if !ok {
-		return nil, nil
-	}
-	if nbtBlock, ok := b.(world.NBTer); ok {
-		key := strconv.Itoa(offset)
-		nbtData, ok := s.palette.BlockPositionData[key]
-		if ok {
-			b = nbtBlock.DecodeNBT(nbtData.BlockEntityData).(world.Block)
-		}
-	}
-	if len(s.Structure.BlockIndices) > 1 {
-		if index = s.Structure.BlockIndices[1][offset]; index == -1 {
-			// Minecraft structures use -1 to indicate that there is no block at a position.
-			return b, nil
-		}
-		state = s.palette.BlockPalette[index]
-		bLiq, ok := world.BlockByName(state.Name, state.States)
-		if !ok {
-			return b, nil
-		}
-		if liq, ok := bLiq.(world.Liquid); ok {
-			return b, liq
-		}
-	}
-	return b, nil
 }
 
 // structureData holds the actual data of the structure. This includes both blocks and entities.

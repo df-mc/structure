@@ -112,4 +112,5 @@ func (s Structure) UsePalette(name string) {
 	}
 	s.palette = &p
 	s.paletteName = name
+	s.parsePalette()
 }
