@@ -1,9 +1,17 @@
 module github.com/df-mc/structure
 
-go 1.13
+go 1.18
 
 require (
-	github.com/df-mc/dragonfly v0.5.2-0.20220322213904-9697863da09a
-	github.com/sandertv/gophertunnel v1.19.1
-	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
+	github.com/df-mc/dragonfly v0.6.0
+	github.com/sandertv/gophertunnel v1.19.4
+)
+
+require (
+	github.com/brentp/intintmap v0.0.0-20190211203843-30dc0ade9af9 // indirect
+	github.com/df-mc/atomic v1.10.0 // indirect
+	github.com/go-gl/mathgl v1.0.0 // indirect
+	github.com/google/uuid v1.3.0 // indirect
+	golang.org/x/exp v0.0.0-20220328175248-053ad81199eb // indirect
+	golang.org/x/image v0.0.0-20220321031419-a8550c1d254a // indirect
 )
