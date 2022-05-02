@@ -3,10 +3,13 @@ package structure
 import (
 	"bufio"
 	"fmt"
+	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
+	"go/ast"
 	"io"
 	"os"
+	"reflect"
 )
 
 // Structure holds the data of an .mcstructure file. Structure implements the world.Structure interface. It
@@ -113,4 +116,73 @@ func (s Structure) UsePalette(name string) {
 	s.palette = &p
 	s.paletteName = name
 	s.parsePalette()
+}
+
+// RotateLeft returns a new structure with the same contents but rotated 90 degrees anti-clockwise.
+func (s Structure) RotateLeft() Structure {
+	return s.rotate(-1)
+}
+
+// RotateRight returns a new structure with the same contents but rotated 90 degrees clockwise.
+func (s Structure) RotateRight() Structure {
+	return s.rotate(1)
+}
+
+// rotate returns a new structure with the same contents but rotated 90 degrees in the specificed direction.
+func (s Structure) rotate(direction int) Structure {
+	sizeX, sizeY, sizeZ := int(s.Size[0]), int(s.Size[1]), int(s.Size[2])
+	newStructure := New([3]int{sizeZ, sizeY, sizeX})
+
+	maxX, maxZ := sizeX-1, sizeZ-1
+	for x := 0; x < sizeX; x++ {
+		for y := 0; y < sizeY; y++ {
+			for z := 0; z < sizeZ; z++ {
+				newX, newZ := x, z
+				if direction == 1 {
+					newX = -z + maxZ
+					newZ = x
+				} else {
+					newX = z
+					newZ = -x + maxX
+				}
+				b, l := s.At(x, y, z, nil)
+				newStructure.Set(newX, y, newZ, b, l)
+			}
+		}
+	}
+	for i, state := range s.palette.BlockPalette {
+		b, ok := world.BlockByName(state.Name, state.States)
+		if !ok {
+			continue
+		}
+
+		origin := reflect.ValueOf(b)
+		t := reflect.TypeOf(b)
+		v := reflect.New(t).Elem()
+
+		for i := 0; i < v.NumField(); i++ {
+			fieldV := v.Field(i)
+			if !ast.IsExported(t.Field(i).Name) {
+				continue
+			}
+			fieldV.Set(origin.Field(i))
+
+			methodName := "RotateLeft"
+			if direction == 1 {
+				methodName = "RotateRight"
+			}
+			method := fieldV.MethodByName(methodName)
+			if !method.IsZero() {
+				fieldV.Set(method.Call(nil)[0])
+			}
+		}
+
+		name, states := v.Interface().(world.Block).EncodeBlock()
+		s.palette.BlockPalette[i] = block{
+			Name:    name,
+			States:  states,
+			Version: state.Version,
+		}
+	}
+	return newStructure
 }
