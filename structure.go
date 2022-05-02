@@ -3,7 +3,6 @@ package structure
 import (
 	"bufio"
 	"fmt"
-	"github.com/df-mc/dragonfly/server/block/cube"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/chunk"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
@@ -171,19 +170,10 @@ func (s Structure) rotate(direction int) Structure {
 			// back in the form element. Not doing so would result in unexpected behaviour.
 			fieldV.Set(origin.Field(i))
 
-			switch t := fieldV.Interface().(type) {
-			case cube.Direction:
-				if direction == 1 {
-					fieldV.SetInt(int64(t.RotateRight()))
-				} else {
-					fieldV.SetInt(int64(t.RotateLeft()))
-				}
-			case cube.Axis:
-				if t == cube.X {
-					fieldV.SetInt(int64(cube.Z))
-				} else if t == cube.Z {
-					fieldV.SetInt(int64(cube.X))
-				}
+			if direction == 1 {
+				fieldV.MethodByName("RotateRight").Call([]reflect.Value{})
+			} else {
+				fieldV.MethodByName("RotateLeft").Call([]reflect.Value{})
 			}
 		}
 
