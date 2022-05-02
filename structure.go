@@ -170,10 +170,13 @@ func (s Structure) rotate(direction int) Structure {
 			// back in the form element. Not doing so would result in unexpected behaviour.
 			fieldV.Set(origin.Field(i))
 
+			methodName := "RotateLeft"
 			if direction == 1 {
-				fieldV.MethodByName("RotateRight").Call([]reflect.Value{})
-			} else {
-				fieldV.MethodByName("RotateLeft").Call([]reflect.Value{})
+				methodName = "RotateRight"
+			}
+			method := fieldV.MethodByName(methodName)
+			if !method.IsZero() {
+				fieldV.Set(method.Call(nil)[0])
 			}
 		}
 
