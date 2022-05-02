@@ -174,9 +174,9 @@ func (s Structure) rotate(direction int) Structure {
 			switch t := fieldV.Interface().(type) {
 			case cube.Direction:
 				if direction == 1 {
-					fieldV.SetInt(int64(t.RotateRight90()))
+					fieldV.SetInt(int64(t.RotateRight()))
 				} else {
-					fieldV.SetInt(int64(t.RotateLeft90()))
+					fieldV.SetInt(int64(t.RotateLeft()))
 				}
 			case cube.Axis:
 				if t == cube.X {
