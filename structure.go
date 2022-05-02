@@ -165,9 +165,6 @@ func (s Structure) rotate(direction int) Structure {
 			if !ast.IsExported(t.Field(i).Name) {
 				continue
 			}
-
-			// We set the field of the original to the new one to make sure that the existing values are placed
-			// back in the form element. Not doing so would result in unexpected behaviour.
 			fieldV.Set(origin.Field(i))
 
 			methodName := "RotateLeft"
