@@ -3,8 +3,8 @@ module github.com/df-mc/structure
 go 1.18
 
 require (
-	github.com/df-mc/dragonfly v0.6.0
-	github.com/sandertv/gophertunnel v1.19.4
+	github.com/df-mc/dragonfly v0.8.1
+	github.com/sandertv/gophertunnel v1.24.1
 )
 
 require (
@@ -12,6 +12,8 @@ require (
 	github.com/df-mc/atomic v1.10.0 // indirect
 	github.com/go-gl/mathgl v1.0.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
-	golang.org/x/exp v0.0.0-20220328175248-053ad81199eb // indirect
-	golang.org/x/image v0.0.0-20220321031419-a8550c1d254a // indirect
+	github.com/sirupsen/logrus v1.9.0 // indirect
+	golang.org/x/exp v0.0.0-20220722155223-a9213eeb770e // indirect
+	golang.org/x/image v0.0.0-20220722155232-062f8c9fd539 // indirect
+	golang.org/x/sys v0.0.0-20220817070843-5a390386f1f2 // indirect
 )
