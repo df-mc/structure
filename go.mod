@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/df-mc/dragonfly v0.8.1
-	github.com/sandertv/gophertunnel v1.24.1
+	github.com/sandertv/gophertunnel v1.24.2
 )
 
 require (
