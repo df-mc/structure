@@ -32,6 +32,7 @@ func Read(r io.Reader) (Structure, error) {
 	}
 	str := Structure{structure: s}
 	str.UsePalette("default")
+	str.prepare()
 	return str, nil
 }
 
@@ -97,6 +98,7 @@ func New(dimensions [3]int) Structure {
 		States:  map[string]interface{}{},
 		Version: chunk.CurrentBlockVersion,
 	})
+	s.prepare()
 	return s
 }
 

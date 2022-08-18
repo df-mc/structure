@@ -17,7 +17,17 @@ type structure struct {
 
 	palette       *palette
 	paletteName   string
-	parsedPalette []world.Block
+	parsedPalette []parsedBlock
+
+	l, h            int
+	blocks, liquids []int32
+}
+
+// parsedBlock is a palette entry that has been parsed in advance.
+type parsedBlock struct {
+	b   world.Block
+	n   world.NBTer
+	liq world.Liquid
 }
 
 // Check to ensure that *structure implements the world.Structure interface.
@@ -30,24 +40,33 @@ func (s *structure) Dimensions() [3]int {
 	return [3]int{int(s.Size[0]), int(s.Size[1]), int(s.Size[2])}
 }
 
+// prepare moves and converts several fields such as the structure's dimensions and block index slices to a form that
+// can be accessed more quickly in At and Set.
+func (s *structure) prepare() {
+	s.l, s.h = int(s.Size[2]), int(s.Size[1])
+	s.blocks = s.Structure.BlockIndices[0]
+	if len(s.Structure.BlockIndices) > 1 {
+		s.liquids = s.Structure.BlockIndices[1]
+	}
+}
+
 // Set sets the block at a specific position within the structure to the world.Block passed. Set will panic
 // if the x, y or z exceed the bounds of the structure. The world.Liquid passed may be nil to avoid waterlogging the
 // block.
 func (s *structure) Set(x, y, z int, b world.Block, liq world.Liquid) {
-	l, h := int(s.Size[2]), int(s.Size[1])
-	offset := (x * l * h) + (y * l) + z
+	offset := (x * s.l * s.h) + (y * s.l) + z
 
-	s.Structure.BlockIndices[0][offset] = s.ptrFor(b)
+	s.blocks[offset] = s.ptrFor(b)
 	if nbtBlock, ok := b.(world.NBTer); ok {
 		s.palette.BlockPositionData[strconv.Itoa(offset)] = blockPositionData{BlockEntityData: nbtBlock.EncodeNBT()}
 	}
 
 	if liq == nil {
 		// No liquid passed to be placed in the background.
-		s.Structure.BlockIndices[1][offset] = -1
+		s.liquids[offset] = -1
 		return
 	}
-	s.Structure.BlockIndices[1][offset] = s.ptrFor(liq)
+	s.liquids[offset] = s.ptrFor(liq)
 }
 
 // ptrFor looks up a palette pointer for the world.Block passed. If not found, it adds the block to the palette of the
@@ -59,49 +78,61 @@ func (s *structure) ptrFor(b world.Block) int32 {
 	if ptr == -1 {
 		// No pointer found, add a new block to the palette.
 		ptr = int32(len(s.palette.BlockPalette))
-		s.palette.BlockPalette = append(s.palette.BlockPalette, block{
+		bl := block{
 			Name:    name,
 			States:  properties,
 			Version: chunk.CurrentBlockVersion,
-		})
-		s.parsePalette()
+		}
+		s.palette.BlockPalette = append(s.palette.BlockPalette, bl)
+		s.parsePaletteEntry(bl)
 	}
 	return ptr
 }
 
 // At returns the block at the x, y and z passed in the structure.
 func (s *structure) At(x, y, z int, _ func(x int, y int, z int) world.Block) (world.Block, world.Liquid) {
-	l, h := int(s.Size[2]), int(s.Size[1])
-	offset := (x * l * h) + (y * l) + z
-	index := s.Structure.BlockIndices[0][offset]
+	offset := (x * s.l * s.h) + (y * s.l) + z
+	index := s.blocks[offset]
 	if index == -1 {
 		// Minecraft structures use -1 to indicate that there is no block at a position.
 		return nil, nil
 	}
-	b := s.parsedPalette[index]
-	if nbtBlock, ok := b.(world.NBTer); ok {
+	entry := s.parsedPalette[index]
+
+	b := entry.b
+	if entry.n != nil {
 		if nbtData, ok := s.palette.BlockPositionData[strconv.Itoa(offset)]; ok {
-			b = nbtBlock.DecodeNBT(nbtData.BlockEntityData).(world.Block)
+			b = entry.n.DecodeNBT(nbtData.BlockEntityData).(world.Block)
 		}
 	}
-	if len(s.Structure.BlockIndices) > 1 {
-		if index = s.Structure.BlockIndices[1][offset]; index == -1 {
+	if s.liquids != nil {
+		if index = s.liquids[offset]; index == -1 {
 			// Minecraft structures use -1 to indicate that there is no block at a position.
 			return b, nil
 		}
-		if liq, ok := s.parsedPalette[index].(world.Liquid); ok {
-			return b, liq
-		}
+		return b, s.parsedPalette[index].liq
 	}
 	return b, nil
 }
 
 // parsePalette parses the palette of the structure so that blocks can be looked up more quickly using At.
 func (s *structure) parsePalette() {
-	s.parsedPalette = make([]world.Block, len(s.palette.BlockPalette))
-	for i, b := range s.palette.BlockPalette {
-		s.parsedPalette[i], _ = world.BlockByName(b.Name, b.States)
+	s.parsedPalette = make([]parsedBlock, 0, len(s.palette.BlockPalette))
+	for _, bl := range s.palette.BlockPalette {
+		s.parsePaletteEntry(bl)
 	}
+}
+
+// parsePaletteEntry parses a single palette entry and adds it to the parsed palette.
+func (s *structure) parsePaletteEntry(bl block) {
+	b, _ := world.BlockByName(bl.Name, bl.States)
+	liq, _ := b.(world.Liquid)
+	n, _ := b.(world.NBTer)
+	s.parsedPalette = append(s.parsedPalette, parsedBlock{
+		b:   b,
+		liq: liq,
+		n:   n,
+	})
 }
 
 // lookup looks up the world.Block passed in the palette of the structure. If not found, the value returned is
