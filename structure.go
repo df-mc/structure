@@ -14,6 +14,7 @@ import (
 
 // Structure holds the data of an .mcstructure file. Structure implements the world.Structure interface. It
 // may be built in a Dragonfly world by using (world.World).BuildStructure.
+// Users must ensure Structure is only accessed from one goroutine at a time.
 type Structure struct {
 	*structure
 }

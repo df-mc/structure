@@ -5,6 +5,7 @@ import (
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/chunk"
 	"strconv"
+	"unsafe"
 )
 
 // structure is the outer wrapper of the structure. It holds the version of the structure, its dimensions,
@@ -21,19 +22,24 @@ type structure struct {
 
 	l, h            int
 	blocks, liquids []int32
+
+	blocksPtr, liquidsPtr, palettePtr unsafe.Pointer
 }
 
 // parsedBlock is a palette entry that has been parsed in advance.
 type parsedBlock struct {
-	b   world.Block
-	n   world.NBTer
-	liq world.Liquid
+	b      world.Block
+	hasNBT bool
 }
 
-// Check to ensure that *structure implements the world.Structure interface.
-var _ world.Structure = (*structure)(nil)
-
 const version = 1
+
+var (
+	// Check to ensure that *structure implements the world.Structure interface.
+	_ world.Structure = (*structure)(nil)
+
+	sizeOfBlock = unsafe.Sizeof(parsedBlock{})
+)
 
 // Dimensions returns the dimensions of the structure as set in the Origin field.
 func (s *structure) Dimensions() [3]int {
@@ -44,10 +50,19 @@ func (s *structure) Dimensions() [3]int {
 // can be accessed more quickly in At and Set.
 func (s *structure) prepare() {
 	s.l, s.h = int(s.Size[2]), int(s.Size[1])
+	if s.Size[0]*s.Size[1]*s.Size[2] == 0 {
+		return
+	}
+
 	s.blocks = s.Structure.BlockIndices[0]
+	s.blocksPtr = unsafe.Pointer(&s.blocks[0])
+
 	if len(s.Structure.BlockIndices) > 1 {
 		s.liquids = s.Structure.BlockIndices[1]
+		s.liquidsPtr = unsafe.Pointer(&s.liquids[0])
 	}
+
+	s.palettePtr = unsafe.Pointer(&s.parsedPalette[0])
 }
 
 // Set sets the block at a specific position within the structure to the world.Block passed. Set will panic
@@ -92,25 +107,27 @@ func (s *structure) ptrFor(b world.Block) int32 {
 // At returns the block at the x, y and z passed in the structure.
 func (s *structure) At(x, y, z int, _ func(x int, y int, z int) world.Block) (world.Block, world.Liquid) {
 	offset := (x * s.l * s.h) + (y * s.l) + z
-	index := s.blocks[offset]
+	index := *(*int32)(unsafe.Pointer(uintptr(s.blocksPtr) + uintptr(offset<<2)))
 	if index == -1 {
 		// Minecraft structures use -1 to indicate that there is no block at a position.
 		return nil, nil
 	}
-	entry := s.parsedPalette[index]
+	entry := *(*parsedBlock)(unsafe.Pointer(uintptr(s.palettePtr) + uintptr(index)*sizeOfBlock))
 
 	b := entry.b
-	if entry.n != nil {
+	if entry.hasNBT {
 		if nbtData, ok := s.palette.BlockPositionData[strconv.Itoa(offset)]; ok {
-			b = entry.n.DecodeNBT(nbtData.BlockEntityData).(world.Block)
+			b = entry.b.(world.NBTer).DecodeNBT(nbtData.BlockEntityData).(world.Block)
 		}
 	}
 	if s.liquids != nil {
-		if index = s.liquids[offset]; index == -1 {
+		index = *(*int32)(unsafe.Pointer(uintptr(s.liquidsPtr) + uintptr(offset<<2)))
+		if index == -1 {
 			// Minecraft structures use -1 to indicate that there is no block at a position.
 			return b, nil
 		}
-		return b, s.parsedPalette[index].liq
+		en := *(*parsedBlock)(unsafe.Pointer(uintptr(s.palettePtr) + uintptr(index)*sizeOfBlock))
+		return b, en.b.(world.Liquid)
 	}
 	return b, nil
 }
@@ -126,12 +143,10 @@ func (s *structure) parsePalette() {
 // parsePaletteEntry parses a single palette entry and adds it to the parsed palette.
 func (s *structure) parsePaletteEntry(bl block) {
 	b, _ := world.BlockByName(bl.Name, bl.States)
-	liq, _ := b.(world.Liquid)
-	n, _ := b.(world.NBTer)
+	_, n := b.(world.NBTer)
 	s.parsedPalette = append(s.parsedPalette, parsedBlock{
-		b:   b,
-		liq: liq,
-		n:   n,
+		b:      b,
+		hasNBT: n,
 	})
 }
 
