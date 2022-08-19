@@ -187,5 +187,6 @@ func (s Structure) rotate(direction int) Structure {
 			Version: state.Version,
 		}
 	}
+	s.parsePalette()
 	return newStructure
 }
