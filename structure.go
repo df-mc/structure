@@ -153,14 +153,12 @@ func (s Structure) rotate(direction int) Structure {
 			}
 		}
 	}
-	for i, state := range s.palette.BlockPalette {
-		b, ok := world.BlockByName(state.Name, state.States)
-		if !ok {
-			continue
-		}
+	newStructure.palette = s.palette
+	newStructure.palette.BlockPalette = make([]block, len(s.palette.BlockPalette))
 
-		origin := reflect.ValueOf(b)
-		t := reflect.TypeOf(b)
+	for i, b := range s.parsedPalette {
+		origin := reflect.ValueOf(b.b)
+		t := reflect.TypeOf(b.b)
 		v := reflect.New(t).Elem()
 
 		for i := 0; i < v.NumField(); i++ {
@@ -181,12 +179,13 @@ func (s Structure) rotate(direction int) Structure {
 		}
 
 		name, states := v.Interface().(world.Block).EncodeBlock()
-		s.palette.BlockPalette[i] = block{
+		newStructure.palette.BlockPalette[i] = block{
 			Name:    name,
 			States:  states,
-			Version: state.Version,
+			Version: chunk.CurrentBlockVersion,
 		}
 	}
-	s.parsePalette()
+	newStructure.parsePalette()
+	newStructure.prepare()
 	return newStructure
 }
