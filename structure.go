@@ -94,11 +94,6 @@ func New(dimensions [3]int) Structure {
 		},
 	}}
 	s.UsePalette("default")
-	s.palette.BlockPalette = append(s.palette.BlockPalette, block{
-		Name:    "minecraft:air",
-		States:  map[string]interface{}{},
-		Version: chunk.CurrentBlockVersion,
-	})
 	s.prepare()
 	return s
 }
@@ -111,13 +106,20 @@ func (s Structure) UsePalette(name string) {
 	if current := s.palette; current != nil {
 		s.Structure.Palettes[s.paletteName] = *s.palette
 	}
-
 	p, _ := s.Structure.Palettes[name]
 	if p.BlockPositionData == nil {
 		p.BlockPositionData = map[string]blockPositionData{}
 	}
 	s.palette = &p
 	s.paletteName = name
+
+	if len(s.palette.BlockPalette) == 0 {
+		s.palette.BlockPalette = []block{{
+			Name:    "minecraft:air",
+			States:  map[string]interface{}{},
+			Version: chunk.CurrentBlockVersion,
+		}}
+	}
 	s.parsePalette()
 }
 
