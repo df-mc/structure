@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/df-mc/dragonfly/server/world"
 	"github.com/df-mc/dragonfly/server/world/chunk"
+	"github.com/df-mc/worldupgrader/blockupgrader"
 	"strconv"
 	"unsafe"
 )
@@ -142,7 +143,12 @@ func (s *structure) parsePalette() {
 
 // parsePaletteEntry parses a single palette entry and adds it to the parsed palette.
 func (s *structure) parsePaletteEntry(bl block) {
-	b, _ := world.BlockByName(bl.Name, bl.States)
+	upgraded := blockupgrader.Upgrade(blockupgrader.BlockState{
+		Name:       bl.Name,
+		Properties: bl.States,
+		Version:    bl.Version,
+	})
+	b, _ := world.BlockByName(upgraded.Name, upgraded.Properties)
 	_, n := b.(world.NBTer)
 	s.parsedPalette = append(s.parsedPalette, parsedBlock{
 		b:      b,
