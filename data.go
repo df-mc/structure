@@ -51,17 +51,26 @@ func (s *structure) Dimensions() [3]int {
 // can be accessed more quickly in At and Set.
 func (s *structure) prepare() {
 	s.l, s.h = int(s.Size[2]), int(s.Size[1])
-	if s.Size[0]*s.Size[1]*s.Size[2] == 0 {
+	n := s.Size[0] * s.Size[1] * s.Size[2]
+	if n == 0 {
 		return
 	}
 
 	s.blocks = s.Structure.BlockIndices[0]
 	s.blocksPtr = unsafe.Pointer(&s.blocks[0])
 
-	if len(s.Structure.BlockIndices) > 1 {
-		s.liquids = s.Structure.BlockIndices[1]
-		s.liquidsPtr = unsafe.Pointer(&s.liquids[0])
+	if len(s.Structure.BlockIndices) == 1 {
+		// No liquids present, but for the sake of performance we'll add them
+		// anyway. This means we can always assume they exist.
+		liquids := make([]int32, n)
+		for i := range liquids {
+			liquids[i] = -1
+		}
+		s.Structure.BlockIndices = append(s.Structure.BlockIndices, liquids)
 	}
+
+	s.liquids = s.Structure.BlockIndices[1]
+	s.liquidsPtr = unsafe.Pointer(&s.liquids[0])
 
 	s.palettePtr = unsafe.Pointer(&s.parsedPalette[0])
 }
@@ -101,6 +110,9 @@ func (s *structure) ptrFor(b world.Block) int32 {
 		}
 		s.palette.BlockPalette = append(s.palette.BlockPalette, bl)
 		s.parsePaletteEntry(bl)
+		// Update the palette pointer because appending might have changed the
+		// location of the underlying array.
+		s.palettePtr = unsafe.Pointer(&s.parsedPalette[0])
 	}
 	return ptr
 }
@@ -121,16 +133,13 @@ func (s *structure) At(x, y, z int, _ func(x int, y int, z int) world.Block) (wo
 			b = entry.b.(world.NBTer).DecodeNBT(nbtData.BlockEntityData).(world.Block)
 		}
 	}
-	if s.liquids != nil {
-		index = *(*int32)(unsafe.Pointer(uintptr(s.liquidsPtr) + uintptr(offset<<2)))
-		if index == -1 {
-			// Minecraft structures use -1 to indicate that there is no block at a position.
-			return b, nil
-		}
-		en := *(*parsedBlock)(unsafe.Pointer(uintptr(s.palettePtr) + uintptr(index)*sizeOfBlock))
-		return b, en.b.(world.Liquid)
+	index = *(*int32)(unsafe.Pointer(uintptr(s.liquidsPtr) + uintptr(offset<<2)))
+	if index == -1 {
+		// Minecraft structures use -1 to indicate that there is no block at a position.
+		return b, nil
 	}
-	return b, nil
+	en := *(*parsedBlock)(unsafe.Pointer(uintptr(s.palettePtr) + uintptr(index)*sizeOfBlock))
+	return b, en.b.(world.Liquid)
 }
 
 // parsePalette parses the palette of the structure so that blocks can be looked up more quickly using At.
@@ -197,10 +206,13 @@ func (s *structure) check() error {
 	if len(s.Structure.Palettes) == 0 {
 		return fmt.Errorf("structure has no palettes in it")
 	}
-	for _, indices := range s.Structure.BlockIndices {
-		size := int(s.Size[0] * s.Size[1] * s.Size[2])
+	size := int(s.Size[0] * s.Size[1] * s.Size[2])
+	if size <= 0 {
+		return fmt.Errorf("structure has a total size of 0 blocks or less (%v)", size)
+	}
+	for i, indices := range s.Structure.BlockIndices {
 		if len(indices) != size {
-			return fmt.Errorf("structure is %vx%vx%v and should have %v blocks, but got only %v", s.Size[0], s.Size[1], s.Size[2], size, len(indices))
+			return fmt.Errorf("structure is %vx%vx%v and should have %v blocks, but got only %v in storage %v", s.Size[0], s.Size[1], s.Size[2], size, len(indices), i)
 		}
 	}
 	paletteLen := -1

@@ -121,6 +121,7 @@ func (s Structure) UsePalette(name string) {
 		}}
 	}
 	s.parsePalette()
+	s.prepare()
 }
 
 // RotateLeft returns a new structure with the same contents but rotated 90 degrees anti-clockwise.
